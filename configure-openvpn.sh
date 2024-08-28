@@ -162,7 +162,8 @@ ufw enable
 
 # Start OpenVPN Service
 systemctl start openvpn-server@server.service
-#systemctl status openvpn-server@server.service
-systemctl enable openvpn-server@server.service
+systemctl status openvpn-server@server.service
+#systemctl enable openvpn-server@server.service
 
 echo "[+] ===> Done!"
+sleep 900000

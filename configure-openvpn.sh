@@ -1,4 +1,6 @@
 #!/bin/bash
+
+# Display Banner
 echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 echo "XX                                                                          XX"
@@ -67,91 +69,97 @@ echo -e "\n"
 echo "                                                              http://0w.nz"
 echo "                                                              http://xero.nu"
 echo "                                                              http://fontvir.us"
-sleep 2500
+sleep 10
 echo "[+] ===> Starting the VPN config... |>"
-apt-get update && apt-get install openvpn easy-rsa ufw net-tools systemctl -yy
-mkdir /easy-rsa
+mkdir -p /easy-rsa
 ln -s /usr/share/easy-rsa/* /easy-rsa/
 cd /easy-rsa/
 ./easyrsa init-pki
 echo "[+] ===> Generating Cert... |>"
-./easyrsa build-ca nopass
-./easyrsa build-server-full vpn_server nopass
-./easyrsa sign-req server vpn_server
+echo -e "\n" | ./easyrsa build-ca nopass
+echo -e "yes\n" | ./easyrsa build-server-full vpn_server nopass
+echo -e "yes\n" | ./easyrsa sign-req server vpn_server nopass
 ./easyrsa gen-dh
 cd /easy-rsa/pki/
-echo "[+] ===> Generating Criptografy... |>"
-openvpn --genkey tls-crypt-v2-server private/vpn_server.pem
+echo "[+] ===> Generating Cryptography... |>"
+echo "[+] ===> Generating Cryptography... |>"
+openvpn --genkey tls-crypt-v2-server ta.key
+openvpn --genkey tls-crypt-v2-server /private/vpn_server.pem
 cd /etc/openvpn/server
-echo '#-------------------- ' >> server.conf
-echo '#VPN port' >> server.conf
-echo 'port 1194' >> server.conf   
-echo -e '\n'
-echo '#VPN over UDP' >> server.conf  
-echo 'proto udp' >> server.conf   
-echo -e '\n'
-echo '# "dev tun" will create a routed IP tunnel' >> server.conf
-echo 'dev tun' >> server.conf
-echo -e '\n'
-echo 'ca ca.crt' >> server.conf
-echo 'cert vpn_server.crt ' >> server.conf
-echo 'key vpn_server.key   ' >> server.conf
-echo 'tls-crypt-v2 vpn_server.pem ' >> server.conf
-echo 'dh dh.pem ' >> server.conf
-echo -e '\n'
-echo '#network for the VPN   ' >> server.conf
-echo 'server 10.8.0.0 255.255.255.0 ' >> server.conf
-echo -e '\n'
-echo 'push "redirect-gateway autolocal" ' >> server.conf
-echo -e '\n'
-echo '# Maintain a record of client <-> virtual IP address ' >> server.conf
-echo -e '\n'
-echo '# associations in this file.  ' >> server.conf
-echo 'ifconfig-pool-persist /var/log/openvpn/ipp.txt' >> server.conf
-echo -e '\n'
-echo '# Ping every 10 seconds and assume client is down if ' >> server.conf
-echo '# it receives no response in 120 seconds.' >> server.conf
-echo 'keepalive 10 120 ' >> server.conf
-echo -e '\n'
-echo '#cryptographic cipher ' >> server.conf
-echo 'cipher AES-256-GCM ' >> server.conf
-echo -e '\n'
-echo '#avoid accessing certain resources on restart ' >> server.conf
-echo 'persist-key ' >> server.conf
-echo 'persist-tun ' >> server.conf
-echo -e '\n'
-echo '#log of current connections  ' >> server.conf
-echo 'status /var/log/openvpn/openvpn-status.log ' >> server.conf
-echo -e '\n'
-echo '#log verbose level (0-9) ' >> server.conf
-echo 'verb 4 ' >> server.conf
-echo -e '\n'
-echo '# Notify the client when the server restarts ' >> server.conf
-echo 'explicit-exit-notify 1 ' >> server.conf
-echo '#-----------------------------------------' >> server.conf 
+cat <<EOF > server.conf
+#--------------------
+#VPN port
+port 1194
+
+#VPN over UDP
+proto udp
+
+# "dev tun" will create a routed IP tunnel
+dev tun
+
+ca ca.crt
+cert vpn_server.crt
+key vpn_server.key
+tls-crypt-v2 vpn_server.key
+dh dh.pem
+
+# Network for the VPN
+server 10.8.0.0 255.255.255.0
+
+push "redirect-gateway autolocal"
+
+# Maintain a record of client <-> virtual IP address associations in this file
+ifconfig-pool-persist /var/log/openvpn/ipp.txt
+
+# Ping every 10 seconds and assume client is down if it receives no response in 120 seconds
+keepalive 10 120
+
+# Cryptographic cipher
+cipher AES-256-GCM
+
+# Avoid accessing certain resources on restart
+persist-key
+persist-tun
+
+# Log of current connections
+status /var/log/openvpn/openvpn-status.log
+
+# Log verbose level (0-9)
+verb 4
+
+# Notify the client when the server restarts
+explicit-exit-notify 1
+EOF
+
 cd /easy-rsa/pki/
 echo "[+] ===> Copying files... |>" 
 cp ca.crt /etc/openvpn/server/
 cp dh.pem /etc/openvpn/server/
+cp ta.key /etc/openvpn/server/
 cd /easy-rsa/pki/private/
 cp vpn_server.key /etc/openvpn/server/
-cp vpn_server.pem /etc/openvpn/server/
+cp vpn_server.key /etc/openvpn/server/
 cd /easy-rsa/pki/issued/
 cp vpn_server.crt /etc/openvpn/server/
-apt-get install procps -yy
-echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
-sysctl -p
-echo "[+] ===> Done!"
 
-INET_INTERFACE = "eth0" #ip route list default | cut -d ' ' -f 5 
+# Configure IP Forwarding
+sysctl -w net.ipv4.ip_forward=1
 
-echo "*nat" >> /etc/ufw/before.rules
-echo ":POSTROUTING ACCEPT [0:0]" >> /etc/ufw/before.rules
-echo "-A POSTROUTING -s 10.8.0.0/16 -o $INET_INTERFACE -j MASQUERADE" >> /etc/ufw/before.rules 
-echo "COMMIT" >> /etc/ufw/before.rules
-sed 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/g' /etc/default/ufw
+# Configure UFW
+echo <<EOF > /etc/ufw/before.rules
+*nat 
+:POSTROUTING ACCEPT [0:0]" 
+-A POSTROUTING -s 10.8.0.0/16 -o eth0 -j MASQUERADE 
+COMMIT
+EOF 
+
+sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/g' /etc/default/ufw
 ufw allow 1194/udp
 ufw disable
 ufw enable
+
+# Start OpenVPN Service
 systemctl start openvpn-server@server.service
 systemctl status openvpn-server@server.service
+
+echo "[+] ===> Done!"

@@ -83,7 +83,7 @@ echo -e "yes\n" | ./easyrsa sign-req server vpn_server nopass
 cd /easy-rsa/pki/
 echo "[+] ===> Generating Cryptography... |>"
 echo "[+] ===> Generating Cryptography... |>"
-openvpn --genkey tls-crypt-v2-server ta.key
+#openvpn --genkey tls-crypt-v2-server ta.key
 openvpn --genkey tls-crypt-v2-server /private/vpn_server.pem
 cd /etc/openvpn/server
 cat <<EOF > server.conf
@@ -135,9 +135,8 @@ cd /easy-rsa/pki/
 echo "[+] ===> Copying files... |>" 
 cp ca.crt /etc/openvpn/server/
 cp dh.pem /etc/openvpn/server/
-cp ta.key /etc/openvpn/server/
+#cp ta.key /etc/openvpn/server/
 cd /easy-rsa/pki/private/
-cp vpn_server.key /etc/openvpn/server/
 cp vpn_server.key /etc/openvpn/server/
 cd /easy-rsa/pki/issued/
 cp vpn_server.crt /etc/openvpn/server/
@@ -146,9 +145,10 @@ cp vpn_server.crt /etc/openvpn/server/
 sysctl -w net.ipv4.ip_forward=1
 
 # Configure UFW
-echo <<EOF > /etc/ufw/before.rules
+cd /etc/ufw
+echo <<EOF > before.rules
 *nat 
-:POSTROUTING ACCEPT [0:0]" 
+:POSTROUTING ACCEPT [0:0]
 -A POSTROUTING -s 10.8.0.0/16 -o eth0 -j MASQUERADE 
 COMMIT
 EOF 

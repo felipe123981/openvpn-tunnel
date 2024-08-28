@@ -82,53 +82,54 @@ echo -e "yes\n" | ./easyrsa sign-req server vpn_server nopass
 ./easyrsa gen-dh
 cd /easy-rsa/pki/
 echo "[+] ===> Generating Cryptography... |>"
-echo "[+] ===> Generating Cryptography... |>"
-#openvpn --genkey tls-crypt-v2-server ta.key
-openvpn --genkey tls-crypt-v2-server /private/vpn_server.pem
-cd /etc/openvpn/server
-cat <<EOF > server.conf
-#--------------------
+openvpn --genkey tls-crypt-v2-server private/vpn_server.pem
+cat <<EOF > /etc/openvpn/server/server.conf
+#-------------------- 
 #VPN port
-port 1194
+port 1194   
 
-#VPN over UDP
-proto udp
+#VPN over UDP  
+proto udp   
 
-# "dev tun" will create a routed IP tunnel
-dev tun
+# "dev tun" will create a routed IP tunnel 
+dev tun 
 
-ca ca.crt
-cert vpn_server.crt
-key vpn_server.key
-tls-crypt-v2 vpn_server.key
-dh dh.pem
+ca ca.crt 
+cert vpn_server.crt 
+key vpn_server.key   
+tls-crypt-v2 vpn_server.pem 
+dh dh.pem 
 
-# Network for the VPN
-server 10.8.0.0 255.255.255.0
+#network for the VPN   
+server 10.8.0.0 255.255.255.0 
 
-push "redirect-gateway autolocal"
+push "redirect-gateway autolocal" 
 
-# Maintain a record of client <-> virtual IP address associations in this file
+# Maintain a record of client <-> virtual IP address 
+
+# associations in this file.  
 ifconfig-pool-persist /var/log/openvpn/ipp.txt
 
-# Ping every 10 seconds and assume client is down if it receives no response in 120 seconds
-keepalive 10 120
+# Ping every 10 seconds and assume client is down if 
+# it receives no response in 120 seconds. 
+keepalive 10 120 
 
-# Cryptographic cipher
-cipher AES-256-GCM
+#cryptographic cipher 
+cipher AES-256-GCM 
 
-# Avoid accessing certain resources on restart
-persist-key
-persist-tun
+#avoid accessing certain resources on restart 
+persist-key 
+persist-tun 
 
-# Log of current connections
-status /var/log/openvpn/openvpn-status.log
+#log of current connections  
+status /var/log/openvpn/openvpn-status.log 
 
-# Log verbose level (0-9)
-verb 4
+#log verbose level (0-9) 
+verb 4 
 
-# Notify the client when the server restarts
-explicit-exit-notify 1
+# Notify the client when the server restarts 
+explicit-exit-notify 1 
+#----------------------------------------- 
 EOF
 
 cd /easy-rsa/pki/
@@ -138,20 +139,21 @@ cp dh.pem /etc/openvpn/server/
 #cp ta.key /etc/openvpn/server/
 cd /easy-rsa/pki/private/
 cp vpn_server.key /etc/openvpn/server/
+cp vpn_server.pem /etc/openvpn/server/
 cd /easy-rsa/pki/issued/
 cp vpn_server.crt /etc/openvpn/server/
 
 # Configure IP Forwarding
-sysctl -w net.ipv4.ip_forward=1
+sed -i 's/#net.ipv4.ip_forward = 1/net.ipv4.ip_forward = 1/g' /etc/sysctl.conf
+sysctl -p #w net.ipv4.ip_forward=1
 
 # Configure UFW
-cd /etc/ufw
-echo <<EOF > before.rules
-*nat 
+cat <<EOF > /etc/ufw/before.rules
+*nat
 :POSTROUTING ACCEPT [0:0]
--A POSTROUTING -s 10.8.0.0/16 -o eth0 -j MASQUERADE 
+-A POSTROUTING -s 10.8.0.0/16 -o eth0 -j MASQUERADE
 COMMIT
-EOF 
+EOF
 
 sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/g' /etc/default/ufw
 ufw allow 1194/udp
@@ -160,6 +162,7 @@ ufw enable
 
 # Start OpenVPN Service
 systemctl start openvpn-server@server.service
-systemctl status openvpn-server@server.service
+#systemctl status openvpn-server@server.service
+systemctl enable openvpn-server@server.service
 
 echo "[+] ===> Done!"
